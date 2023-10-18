@@ -1,0 +1,7 @@
+.idea
+venv
+old_testing_methods_on_simpler_functions
+__pycache__
+loss_landscape
+oil_pumps_example_plots
+runs
