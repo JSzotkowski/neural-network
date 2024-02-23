@@ -16,9 +16,13 @@ class NeuralNetwork:
         self.weights = [np.random.randn(n, m) for m, n in zip(self.structure[:-1], self.structure[1:])]
 
         # initialization of previous gradients for methods that need them
-        # = SGD with momentum
+        # = SGD with momentum, Adagrad, Adam
         self.previous_update_w = [np.zeros(w.shape) for w in self.weights]
         self.previous_update_b = [np.zeros(b.shape) for b in self.biases]
+        self.gradient_squares_sum_w = [np.zeros(w.shape) for w in self.weights]
+        self.gradient_squares_sum_b = [np.zeros(b.shape) for b in self.biases]
+        self.previous_momentum_w = [np.zeros(w.shape) for w in self.weights]
+        self.previous_momentum_b = [np.zeros(b.shape) for b in self.biases]
 
         self.validation_percentiles = []
         self.testing_percentiles = []
@@ -290,15 +294,15 @@ class NeuralNetwork:
             gradient_w = [nw + dnw for nw, dnw in zip(gradient_w, delta_nabla_w)]
             gradient_b = [nb + dnb for nb, dnb in zip(gradient_b, delta_nabla_b)]
 
-        eta *= (1 - mtm)
+        # eta *= (1 - mtm)
 
         # calculate update
-        update_w = [- eta * nw + mtm * pnw for nw, pnw in zip(gradient_w, self.previous_update_w)]
-        update_b = [- eta * nb + mtm * pnb for nb, pnb in zip(gradient_b, self.previous_update_b)]
+        # update_w = [- eta * nw + mtm * pnw for nw, pnw in zip(gradient_w, self.previous_update_w)]
+        # update_b = [- eta * nb + mtm * pnb for nb, pnb in zip(gradient_b, self.previous_update_b)]
 
         # calculate update like we did on simpler functions
-        # update_w = [- (1 - mtm) * nw + mtm * pnw for nw, pnw in zip(gradient_w, self.previous_update_w)]
-        # update_b = [- (1 - mtm) * nb + mtm * pnb for nb, pnb in zip(gradient_b, self.previous_update_b)]
+        update_w = [- (1 - mtm) * eta * nw + mtm * pnw for nw, pnw in zip(gradient_w, self.previous_update_w)]
+        update_b = [- (1 - mtm) * eta * nb + mtm * pnb for nb, pnb in zip(gradient_b, self.previous_update_b)]
 
         # update
         self.weights = [w + uw for w, uw in zip(self.weights, update_w)]
@@ -366,9 +370,15 @@ class NeuralNetwork:
         self.weights = [w - mtm * pnw for w, pnw in zip(self.weights, self.previous_update_w)]
         self.biases = [b - mtm * pnb for b, pnb in zip(self.biases, self.previous_update_b)]
 
+        eta *= (1 - mtm)
+
         # calculate update
-        update_w = [- (eta / k) * nw + mtm * pnw for nw, pnw in zip(gradient_w, self.previous_update_w)]
-        update_b = [- (eta / k) * nb + mtm * pnb for nb, pnb in zip(gradient_b, self.previous_update_b)]
+        update_w = [- eta * nw + mtm * pnw for nw, pnw in zip(gradient_w, self.previous_update_w)]
+        update_b = [- eta * nb + mtm * pnb for nb, pnb in zip(gradient_b, self.previous_update_b)]
+
+        # calculate update like we did on simpler functions
+        # update_w = [- (eta / k) * nw + mtm * pnw for nw, pnw in zip(gradient_w, self.previous_update_w)]
+        # update_b = [- (eta / k) * nb + mtm * pnb for nb, pnb in zip(gradient_b, self.previous_update_b)]
 
         # update
         self.weights = [w + uw for w, uw in zip(self.weights, update_w)]
@@ -377,6 +387,141 @@ class NeuralNetwork:
         # remember update
         self.previous_update_w = update_w
         self.previous_update_b = update_b
+
+    def train_using_adagrad(self, training_data: list, n_epochs: int,
+                            mini_batch_size: int,
+                            eta: float,
+                            test_data: list = None,
+                            validation_data: list = None) -> None:
+        """
+                :param training_data: list of tuples (training_input, desired_output)
+                :param n_epochs:
+                :param mini_batch_size:
+                :param eta: a learning rate
+                setting for the momentum factor is 0.9 (sun.pdf, p. 6)... update is not only current gradient, but
+                we additionally add mtm * previous update to that
+                :param test_data: if test_data is provided partial progress will be printed
+                :param validation_data: if validation_data is provided partial progress will be printed - the network also
+                trains on these data
+                :return: None
+                """
+        n_test_data = len(test_data) if test_data else 0
+        n_validation_data = len(test_data) if test_data else 0
+        n = len(training_data)
+
+        self.previous_update_w = [np.zeros(w.shape) for w in self.weights]
+        self.previous_update_b = [np.zeros(b.shape) for b in self.biases]
+        self.gradient_squares_sum_w = [np.zeros(w.shape) for w in self.weights]
+        self.gradient_squares_sum_b = [np.zeros(b.shape) for b in self.biases]
+
+        for i in range(n_epochs):
+            shuffle(training_data)
+            mini_batches = [training_data[k: k + mini_batch_size] for k in range(0, n, mini_batch_size)]
+            for mini_batch in mini_batches:
+                self.train_using_adagrad_on_a_single_mini_batch(mini_batch, eta)
+            self.print_and_write_down_epoch_stats(i, n_test_data, n_validation_data, test_data, validation_data)
+
+    def train_using_adagrad_on_a_single_mini_batch(self, mini_batch: list,
+                                                   eta: float) -> None:
+        """applies one step of stochastic gradient descent with momentum
+        :param mini_batch: is a list of tuples (training_input, desired_output)
+        :param eta: is a learning rate
+        """
+        k = len(mini_batch)
+        eps = 1
+        gradient_w = [np.zeros(w.shape) for w in self.weights]
+        gradient_b = [np.zeros(b.shape) for b in self.biases]
+
+        # calculate gradient
+        for training_input, desired_output in mini_batch:
+            delta_nabla_w, delta_nabla_b = self.backpropagation(training_input, desired_output)
+            gradient_w = [nw + dnw for nw, dnw in zip(gradient_w, delta_nabla_w)]
+            gradient_b = [nb + dnb for nb, dnb in zip(gradient_b, delta_nabla_b)]
+
+        self.gradient_squares_sum_w = [pss + nw ** 2 for pss, nw in zip(self.gradient_squares_sum_w, gradient_w)]
+        self.gradient_squares_sum_b = [pss + nb ** 2 for pss, nb in zip(self.gradient_squares_sum_b, gradient_b)]
+
+        vw = [(eps + gss) * 0.5 for gss in self.gradient_squares_sum_w]
+        vb = [(eps + gss) * 0.5 for gss in self.gradient_squares_sum_b]
+
+        # calculate update
+        update_w = [- eta * nw / v for nw, v in zip(gradient_w, vw)]
+        update_b = [- eta * nb / v for nb, v in zip(gradient_b, vb)]
+        # update
+        self.weights = [w + uw for w, uw in zip(self.weights, update_w)]
+        self.biases = [b + ub for b, ub in zip(self.biases, update_b)]
+
+    def train_using_adam(self, training_data: list, n_epochs: int,
+                         mini_batch_size: int,
+                         eta: float, beta1: float, beta2: float,
+                         test_data: list = None,
+                         validation_data: list = None) -> None:
+        """
+        :param training_data: list of tuples (training_input, desired_output)
+        :param n_epochs:
+        :param mini_batch_size:
+        :param eta: a learning rate
+        :param beta1: momentum factor - coefficient for exponentially decaying average
+        :param beta2: another exponential decay rate - for decreasing gradient step
+        :param test_data: if test_data is provided partial progress will be printed
+        :param validation_data: if validation_data is provided partial progress will be printed - the network also
+        trains on these data
+        :return: None
+        """
+        n_test_data = len(test_data) if test_data else 0
+        n_validation_data = len(test_data) if test_data else 0
+        n = len(training_data)
+
+        self.previous_momentum_w = [np.zeros(w.shape) for w in self.weights]
+        self.previous_momentum_b = [np.zeros(b.shape) for b in self.biases]
+        self.gradient_squares_sum_w = [np.zeros(w.shape) for w in self.weights]
+        self.gradient_squares_sum_b = [np.zeros(b.shape) for b in self.biases]
+
+        for i in range(n_epochs):
+            shuffle(training_data)
+            mini_batches = [training_data[k: k + mini_batch_size] for k in range(0, n, mini_batch_size)]
+            for mini_batch in mini_batches:
+                self.train_using_adam_on_a_single_mini_batch(mini_batch, eta, beta1, beta2)
+            self.print_and_write_down_epoch_stats(i, n_test_data, n_validation_data, test_data, validation_data)
+
+    def train_using_adam_on_a_single_mini_batch(self, mini_batch: list,
+                                                eta: float, beta1: float, beta2: float) -> None:
+        """applies one step of stochastic gradient descent with momentum
+        :param mini_batch: is a list of tuples (training_input, desired_output)
+        :param eta: is a learning rate
+        :param beta1: momentum factor - coefficient for exponentially decaying average
+        :param beta2: another exponential decay rate - for decreasing gradient step
+        """
+        k = len(mini_batch)
+        eps = 0.1
+        gradient_w = [np.zeros(w.shape) for w in self.weights]
+        gradient_b = [np.zeros(b.shape) for b in self.biases]
+        eta *= (1 - beta1)
+
+        # calculate gradient
+        for training_input, desired_output in mini_batch:
+            delta_nabla_w, delta_nabla_b = self.backpropagation(training_input, desired_output)
+            gradient_w = [nw + dnw for nw, dnw in zip(gradient_w, delta_nabla_w)]
+            gradient_b = [nb + dnb for nb, dnb in zip(gradient_b, delta_nabla_b)]
+
+        self.previous_momentum_w = [(1 - beta1) * nw + beta1 * mw for nw, mw in
+                                    zip(self.previous_momentum_w, gradient_w)]
+        self.previous_momentum_b = [(1 - beta1) * nb + beta1 * mb for nb, mb in
+                                    zip(self.previous_momentum_b, gradient_b)]
+
+        self.gradient_squares_sum_w = [((1 - beta2) * (nw ** 2) + beta2 * pss) ** 0.5 for pss, nw in
+                                       zip(self.gradient_squares_sum_w, gradient_w)]
+        self.gradient_squares_sum_b = [((1 - beta2) * (nb ** 2) + beta2 * pss) ** 0.5 for pss, nb in
+                                       zip(self.gradient_squares_sum_b, gradient_b)]
+
+        # calculate update
+        update_w = [- eta * mw / (vw + eps) * ((1 - beta2) ** 0.5) / (1 - beta1) for mw, vw in zip(
+            self.previous_momentum_w, self.gradient_squares_sum_w)]
+        update_b = [- eta * mb / (vb + eps) * ((1 - beta2) ** 0.5) / (1 - beta1) for mb, vb in zip(
+            self.previous_momentum_b, self.gradient_squares_sum_b)]
+        # update
+        self.weights = [w + uw for w, uw in zip(self.weights, update_w)]
+        self.biases = [b + ub for b, ub in zip(self.biases, update_b)]
 
     def print_and_write_down_epoch_stats(self, i, n_test_data, n_validation_data, test_data, validation_data):
         if validation_data and test_data:

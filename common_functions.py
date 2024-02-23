@@ -13,9 +13,13 @@ def print_asdf():
 
 
 def sigmoid(z: np.ndarray) -> np.ndarray:
-    global asdf
-    x = min(z)
-    asdf = min(asdf, x)
+    # global asdf
+    # x = min(z)
+    # asdf = min(asdf, x)
+    # for i in range(len(z)):
+    #     if z[i] < -512.0:
+    #         print("overflow :D")
+    #         z[i] = -512.0
     return 1.0 / (1.0 + np.exp(-z))
 
 
