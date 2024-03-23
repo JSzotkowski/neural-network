@@ -136,6 +136,9 @@ class NeuralNetwork:
                 mini_batches = [training_data[k: k + mini_batch_size] for k in range(0, n, mini_batch_size)]
 
                 for mini_batch in mini_batches:
+                    if j >= steps_per_epoch:
+                        break
+
                     def func(k):
                         return self.get_total_loss_on_dataset_on_certain_parameters(mini_batch, k)
 
@@ -176,12 +179,17 @@ class NeuralNetwork:
 
                     NelderMeadHelper.replace_all_points_except_the_best(simplex, sigma)
                     j += 1
-                    if j >= steps_per_epoch:
-                        break
+
             nn_parameters = list(centroid)
             self.set_parameters_of_neural_network_to_certain_values(nn_parameters)
-            print(self.get_total_loss_on_dataset_on_current_parameters(training_data))
-            self.print_and_write_down_epoch_stats(i, n_test_data, n_validation_data, test_data, validation_data)
+            if self.get_total_loss_on_dataset_on_current_parameters(training_data) < 0.005:
+                print(f'finished at epoch {i + 1}')
+                print(self.get_total_loss_on_dataset_on_current_parameters(training_data))
+                self.print_and_write_down_epoch_stats(i, n_test_data, n_validation_data, test_data, validation_data)
+                return
+            if i % 20 == 19:
+                print(self.get_total_loss_on_dataset_on_current_parameters(training_data))
+                self.print_and_write_down_epoch_stats(i, n_test_data, n_validation_data, test_data, validation_data)
 
     def train_using_stochastic_gradient_descent(self, training_data: list, n_epochs: int, mini_batch_size: int,
                                                 eta: float,
@@ -250,6 +258,7 @@ class NeuralNetwork:
                                                               test_data: list = None,
                                                               validation_data: list = None) -> None:
         """
+        :rtype: object
         :param training_data: list of tuples (training_input, desired_output)
         :param n_epochs:
         :param mini_batch_size:
@@ -390,7 +399,7 @@ class NeuralNetwork:
 
     def train_using_adagrad(self, training_data: list, n_epochs: int,
                             mini_batch_size: int,
-                            eta: float,
+                            eta: float, eps: float,
                             test_data: list = None,
                             validation_data: list = None) -> None:
         """
@@ -400,6 +409,7 @@ class NeuralNetwork:
                 :param eta: a learning rate
                 setting for the momentum factor is 0.9 (sun.pdf, p. 6)... update is not only current gradient, but
                 we additionally add mtm * previous update to that
+                :param eps: prevention of division by zero
                 :param test_data: if test_data is provided partial progress will be printed
                 :param validation_data: if validation_data is provided partial progress will be printed - the network also
                 trains on these data
@@ -418,17 +428,17 @@ class NeuralNetwork:
             shuffle(training_data)
             mini_batches = [training_data[k: k + mini_batch_size] for k in range(0, n, mini_batch_size)]
             for mini_batch in mini_batches:
-                self.train_using_adagrad_on_a_single_mini_batch(mini_batch, eta)
+                self.train_using_adagrad_on_a_single_mini_batch(mini_batch, eta, eps)
             self.print_and_write_down_epoch_stats(i, n_test_data, n_validation_data, test_data, validation_data)
 
     def train_using_adagrad_on_a_single_mini_batch(self, mini_batch: list,
-                                                   eta: float) -> None:
+                                                   eta: float, eps: float) -> None:
         """applies one step of stochastic gradient descent with momentum
         :param mini_batch: is a list of tuples (training_input, desired_output)
         :param eta: is a learning rate
+        :param eps: prevention of division by zero
         """
         k = len(mini_batch)
-        eps = 1
         gradient_w = [np.zeros(w.shape) for w in self.weights]
         gradient_b = [np.zeros(b.shape) for b in self.biases]
 
@@ -454,6 +464,7 @@ class NeuralNetwork:
     def train_using_adam(self, training_data: list, n_epochs: int,
                          mini_batch_size: int,
                          eta: float, beta1: float, beta2: float,
+                         eps: float,
                          test_data: list = None,
                          validation_data: list = None) -> None:
         """
@@ -463,6 +474,7 @@ class NeuralNetwork:
         :param eta: a learning rate
         :param beta1: momentum factor - coefficient for exponentially decaying average
         :param beta2: another exponential decay rate - for decreasing gradient step
+        :param eps: prevention of division by zero
         :param test_data: if test_data is provided partial progress will be printed
         :param validation_data: if validation_data is provided partial progress will be printed - the network also
         trains on these data
@@ -481,19 +493,19 @@ class NeuralNetwork:
             shuffle(training_data)
             mini_batches = [training_data[k: k + mini_batch_size] for k in range(0, n, mini_batch_size)]
             for mini_batch in mini_batches:
-                self.train_using_adam_on_a_single_mini_batch(mini_batch, eta, beta1, beta2)
+                self.train_using_adam_on_a_single_mini_batch(mini_batch, eta, beta1, beta2, eps)
             self.print_and_write_down_epoch_stats(i, n_test_data, n_validation_data, test_data, validation_data)
 
     def train_using_adam_on_a_single_mini_batch(self, mini_batch: list,
-                                                eta: float, beta1: float, beta2: float) -> None:
+                                                eta: float, beta1: float, beta2: float, eps: float) -> None:
         """applies one step of stochastic gradient descent with momentum
         :param mini_batch: is a list of tuples (training_input, desired_output)
         :param eta: is a learning rate
         :param beta1: momentum factor - coefficient for exponentially decaying average
         :param beta2: another exponential decay rate - for decreasing gradient step
+        :param eps: prevention of division by zero
         """
         k = len(mini_batch)
-        eps = 0.1
         gradient_w = [np.zeros(w.shape) for w in self.weights]
         gradient_b = [np.zeros(b.shape) for b in self.biases]
         eta *= (1 - beta1)
