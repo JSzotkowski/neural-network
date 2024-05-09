@@ -33,22 +33,23 @@ y_range = np.linspace(min(y_values), max(y_values), num=len(data))
 # Create a grid of (x, y) points
 xx, yy = np.meshgrid(x_range, y_range)
 
+print(xx, x_range)
+
 # Interpolate the function values on the grid
 interpolated_f = griddata((x_values, y_values), f_values, (xx, yy), method='linear')
 
 # Create a contour plot
-plt.contourf(xx, yy, interpolated_f, cmap='viridis')
-plt.colorbar(label='f(x, y)')
-plt.xlabel('x')
-plt.ylabel('y')
-plt.title('Contour Plot of f(x, y)')
-plt.show()
+# plt.contourf(xx, yy, interpolated_f, cmap='viridis')
+# plt.colorbar(label='f(x, y)')
+# plt.xlabel('x')
+# plt.ylabel('y')
+# plt.title('Contour Plot of f(x, y)')
+# plt.show()
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 ax.plot_surface(xx, yy, interpolated_f, cmap='viridis')
-ax.set_xlabel('x')
-ax.set_ylabel('y')
-ax.set_zlabel('f(x, y)')
-ax.set_title('Surface Plot of f(x, y)')
+ax.set_xlabel(r'$[9][14]$')
+ax.set_ylabel(r'$[4][14]$')
+ax.set_zlabel(r'$L\left(\theta, D\right)$')
 plt.show()

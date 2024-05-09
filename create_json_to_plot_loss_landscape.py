@@ -37,9 +37,9 @@ if __name__ == '__main__':
         net.two_dimensional_move_by(-length, delta)
     end = time()
 
-    print(f'Total duration: {end - start}')
-    with open('/home/jiri/PycharmProjects/NeuralNetwork/terrain_to_visualize.json', 'w') as outfile:
-        json.dump(evaluations, outfile, indent=4)
+    # print(f'Total duration: {end - start}')
+    # with open('/home/jiri/PycharmProjects/NeuralNetwork/terrain_to_visualize.json', 'w') as outfile:
+    #     json.dump(evaluations, outfile, indent=4)
 
     # times = []
     #

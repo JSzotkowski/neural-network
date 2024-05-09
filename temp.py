@@ -1,13 +1,28 @@
-import json
+import numpy as np
+import matplotlib.pyplot as plt
+from mnist_loader import load_data_wrapper
+import random
 
-if __name__ == '__main__':
-    with open("/standard_vs_stoch/eta div k/1696498851.3823464.json", "r") as infile:
-        d = json.load(infile)
+def display_digits(images, labels, num_images=5):
+    """
+    Display digits from the MNIST dataset.
 
-    rs = []
-    for key, value in d.items():
-        value["batch_size"] = key
-        rs.append(value)
+    Args:
+        images: List of image data (numpy arrays).
+        labels: List of corresponding labels (integers).
+        num_images: Number of images to display (default is 5).
+    """
+    fig, axes = plt.subplots(1, num_images, figsize=(10, 3))
+    for i in range(num_images):
+        axes[i].imshow(images[i].reshape(28, 28), cmap='gray')
+        axes[i].axis('off')
+    plt.show()
 
-    with open("/standard_vs_stoch/eta div k/list_variant.json", "w") as outfile:
-        json.dump(rs, outfile, indent=4)
+
+# Load MNIST data
+training_data, _, _ = load_data_wrapper()
+random.shuffle(training_data)
+images, labels = zip(*training_data)
+
+# Display some digits
+display_digits(images, labels)
